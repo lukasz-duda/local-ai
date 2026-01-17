@@ -10,7 +10,7 @@ public class InvoiceController(IInvoiceAnalyzer invoiceAnalyzer) : ControllerBas
 
     [HttpPost]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadInvoice(IFormFile file)
+    public async Task<IActionResult> UploadInvoice(IFormFile invoiceFile)
     {
         if (!Request.HasFormContentType)
         {
@@ -22,7 +22,7 @@ public class InvoiceController(IInvoiceAnalyzer invoiceAnalyzer) : ControllerBas
         await formFeature.ReadFormAsync(cancellationToken);
 
         using var memoryStream = new MemoryStream();
-        await file.CopyToAsync(memoryStream);
+        await invoiceFile.CopyToAsync(memoryStream);
         byte[] fileContent = memoryStream.ToArray();
 
         Invoice? invoice = await invoiceAnalyzer.ExtractInvoiceAsync(fileContent);
