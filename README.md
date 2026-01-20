@@ -2,18 +2,18 @@
 
 Local AI use cases prototype:
 
-1. Live Chat.
 2. Extract invoice information.
-3. Semantic search.
+1. Live Chat.
+
 
 ## Requirements
 
 - [Docker](https://www.docker.com)
 - [.NET SDK 8.0](https://dotnet.microsoft.com)
 
-## Start infrastructure
+## Invoices
 
-Start [Ollama](https://ollama.com):
+Start [Ollama](https://ollama.com) and invoices API http://localhost:5120:
 
 ```bash
 docker compose up -d
@@ -31,14 +31,5 @@ Start Live Chat console application:
 
 ```bash
 cd live-chat
-dotnet run
-```
-
-## Invoices
-
-Start invoices API http://localhost:5120:
-
-```bash
-cd invoices/api
 dotnet run
 ```

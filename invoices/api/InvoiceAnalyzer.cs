@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Invoices;
@@ -10,14 +11,28 @@ public interface IInvoiceAnalyzer
 
 class InvoiceAnalyzer : IInvoiceAnalyzer
 {
-  public async Task<Invoice?> ExtractInvoiceAsync(byte[] content)
-  {
-    var pdfText = ExtractPdfText(content);
-    var invoice = await ExtractInvoiceJson(pdfText);
-    return invoice;
-  }
+  public async Task<Invoice?> ExtractInvoiceAsync(byte[] pdfContent)
+    {
+        byte[] textPdfContent = OcrPdf(pdfContent);
+        var pdfText = ExtractPdfText(textPdfContent);
+        var invoice = await ExtractInvoiceJson(pdfText);
+        return invoice;
+    }
 
-  public static string ExtractPdfText(byte[] content)
+    private static byte[] OcrPdf(byte[] pdfContent)
+    {
+        string temporaryInputPath = "input.pdf"; //Path.GetTempFileName();
+        File.WriteAllBytes(temporaryInputPath, pdfContent);
+        string temporaryOutputPath = "output.pdf"; // Path.GetTempFileName();
+        Process.Start("ocrmypdf", $"-l pol --skip-text --output-type pdf {temporaryInputPath} {temporaryOutputPath}");
+        Thread.Sleep(3000);
+        byte[] textPdfContent = File.ReadAllBytes(temporaryOutputPath);
+        File.Delete(temporaryInputPath);
+        File.Delete(temporaryOutputPath);
+        return textPdfContent;
+    }
+
+    public static string ExtractPdfText(byte[] content)
   {
     var sb = new StringBuilder();
 
@@ -33,7 +48,7 @@ class InvoiceAnalyzer : IInvoiceAnalyzer
   {
     using var http = new HttpClient
     {
-      BaseAddress = new Uri("http://localhost:11434")
+      BaseAddress = new Uri("http://ollama:11434")
     };
 
     http.Timeout = TimeSpan.FromMinutes(5);

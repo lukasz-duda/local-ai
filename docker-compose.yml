@@ -2,6 +2,14 @@ name: local-ai
 
 services:
 
+  invoices:
+    container_name: invoices
+    build:
+      context: ./invoices/api
+      dockerfile: Dockerfile
+    ports:
+      - 5120:8080
+
   ollama:
     container_name: ollama
     image: ollama/ollama
