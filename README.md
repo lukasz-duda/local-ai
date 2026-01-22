@@ -2,7 +2,7 @@
 
 This project extracts key information from Polish PDF invoices using a local LLM.
 
-First start [Ollama](https://ollama.com) and the [invoice extractor service](http://localhost:5120):
+First start [Ollama](https://ollama.com) and the [invoice extractor service](http://localhost:5120/swagger):
 
 ```bash
 docker compose up -d
