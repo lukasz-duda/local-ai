@@ -1,16 +1,18 @@
-using Invoices;
+using InvoiceExtraction;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 
+namespace InvoicesApi.Controllers;
+
 [ApiController]
 [Route("invoices")]
-public class InvoiceController(IInvoiceAnalyzer invoiceAnalyzer) : ControllerBase
+public class InvoiceController(IInvoiceExtractor invoiceExtractor) : ControllerBase
 {
     private static List<Invoice> _invoices = new();
 
     [HttpPost]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadInvoice(IFormFile invoiceFile)
+    public async Task<IActionResult> UploadInvoice(IFormFile invoicePdfFile)
     {
         if (!Request.HasFormContentType)
         {
@@ -21,11 +23,8 @@ public class InvoiceController(IInvoiceAnalyzer invoiceAnalyzer) : ControllerBas
         var formFeature = Request.HttpContext.Features.GetRequiredFeature<IFormFeature>();
         await formFeature.ReadFormAsync(cancellationToken);
 
-        using var memoryStream = new MemoryStream();
-        await invoiceFile.CopyToAsync(memoryStream);
-        byte[] fileContent = memoryStream.ToArray();
-
-        Invoice? invoice = await invoiceAnalyzer.ExtractInvoiceAsync(fileContent);
+        var invoicePdfStream = invoicePdfFile.OpenReadStream();
+        Invoice? invoice = await invoiceExtractor.ExtractAsync(invoicePdfStream);
 
         if (invoice != null)
         {

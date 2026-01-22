@@ -1,12 +1,12 @@
-name: local-ai
+name: invoice-extraction
 
 services:
 
-  invoices:
-    container_name: invoices
+  api:
+    container_name: invoice-api
     build:
-      context: ./invoices/api
-      dockerfile: Dockerfile
+      context: ./src
+      dockerfile: ./InvoiceApi/Dockerfile
     ports:
       - 5120:8080
 

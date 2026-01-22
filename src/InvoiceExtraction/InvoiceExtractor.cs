@@ -1,45 +1,60 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
-using Invoices;
+using Microsoft.Extensions.Options;
 using UglyToad.PdfPig;
 
-public interface IInvoiceAnalyzer
-{
-  Task<Invoice?> ExtractInvoiceAsync(byte[] content);
-}
+namespace InvoiceExtraction;
 
-class InvoiceAnalyzer : IInvoiceAnalyzer
+public class InvoiceExtractor : IInvoiceExtractor
 {
+  private readonly InvoiceExtractionOptions _options;
+
+  public InvoiceExtractor(IOptions<InvoiceExtractionOptions> options)
+  {
+    _options = options.Value;
+  }
+
+  public async Task<Invoice?> ExtractAsync(Stream pdfStream)
+  {
+    using var memoryStream = new MemoryStream();
+    await pdfStream.CopyToAsync(memoryStream);
+    byte[] pdfContent = memoryStream.ToArray();
+
+    return await ExtractInvoiceAsync(pdfContent);
+  }
+
   public async Task<Invoice?> ExtractInvoiceAsync(byte[] pdfContent)
-    {
-        byte[] textPdfContent = OcrPdf(pdfContent);
-        var pdfText = ExtractPdfText(textPdfContent);
-        var invoice = await ExtractInvoiceJson(pdfText);
-        return invoice;
-    }
+  {
+    byte[] textPdfContent = OcrPdf(pdfContent);
+    var pdfText = ExtractPdfText(textPdfContent);
+    var invoice = await ExtractInvoiceJson(pdfText);
+    return invoice;
+  }
 
-    private static byte[] OcrPdf(byte[] pdfContent)
-    {
-        string temporaryInputPath = "input.pdf"; //Path.GetTempFileName();
-        File.WriteAllBytes(temporaryInputPath, pdfContent);
-        string temporaryOutputPath = "output.pdf"; // Path.GetTempFileName();
-        Process.Start("ocrmypdf", $"-l pol --skip-text --output-type pdf {temporaryInputPath} {temporaryOutputPath}");
-        Thread.Sleep(3000);
-        byte[] textPdfContent = File.ReadAllBytes(temporaryOutputPath);
-        File.Delete(temporaryInputPath);
-        File.Delete(temporaryOutputPath);
-        return textPdfContent;
-    }
+  private static byte[] OcrPdf(byte[] pdfContent)
+  {
+    string temporaryInputPath = Path.GetTempFileName();
+    File.WriteAllBytes(temporaryInputPath, pdfContent);
+    string temporaryOutputPath = Path.GetTempFileName();
+    var process = Process.Start("ocrmypdf", $"-l pol --skip-text --output-type pdf {temporaryInputPath} {temporaryOutputPath}");
+    process.WaitForExit();
+    byte[] textPdfContent = File.ReadAllBytes(temporaryOutputPath);
+    File.Delete(temporaryInputPath);
+    File.Delete(temporaryOutputPath);
+    return textPdfContent;
+  }
 
-    public static string ExtractPdfText(byte[] content)
+  public static string ExtractPdfText(byte[] content)
   {
     var sb = new StringBuilder();
 
     using var pdf = PdfDocument.Open(content);
 
     foreach (var page in pdf.GetPages())
+    {
       sb.AppendLine(page.Text);
+    }
 
     return sb.ToString();
   }
@@ -48,7 +63,7 @@ class InvoiceAnalyzer : IInvoiceAnalyzer
   {
     using var http = new HttpClient
     {
-      BaseAddress = new Uri("http://ollama:11434")
+      BaseAddress = new Uri(_options.OllamaUri)
     };
 
     http.Timeout = TimeSpan.FromMinutes(5);

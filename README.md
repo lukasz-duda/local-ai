@@ -1,35 +1,15 @@
-# Local AI
+# Invoice Extractor
 
-Local AI use cases prototype:
+This project extracts key information from Polish PDF invoices using a local LLM.
 
-2. Extract invoice information.
-1. Live Chat.
-
-
-## Requirements
-
-- [Docker](https://www.docker.com)
-- [.NET SDK 8.0](https://dotnet.microsoft.com)
-
-## Invoices
-
-Start [Ollama](https://ollama.com) and invoices API http://localhost:5120:
+First start [Ollama](https://ollama.com) and the [invoice extractor service](http://localhost:5120):
 
 ```bash
 docker compose up -d
 ```
 
-Install model:
+Then install the required language model:
 
 ```bash
 docker exec -it ollama ollama pull SpeakLeash/bielik-11b-v3.0-instruct:Q4_K_M
-```
-
-## Live Chat
-
-Start Live Chat console application:
-
-```bash
-cd live-chat
-dotnet run
 ```

@@ -1,4 +1,4 @@
-namespace Invoices;
+namespace InvoiceExtraction;
 
 public class Invoice
 {
