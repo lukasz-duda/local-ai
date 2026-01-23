@@ -13,11 +13,9 @@ RUN dotnet publish ./InvoiceApi/InvoiceApi.csproj -c Release -o /app/publish --n
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    ocrmypdf \
-    tesseract-ocr \
-    tesseract-ocr-pol
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends python3-pip tesseract-ocr tesseract-ocr-pol ghostscript
+RUN pip install --upgrade --break-system-packages ocrmypdf
 
 COPY --from=build /app/publish ./
 

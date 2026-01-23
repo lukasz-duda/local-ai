@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Schema;
 using Microsoft.Extensions.Options;
-using UglyToad.PdfPig;
 
 namespace InvoiceExtraction;
 
@@ -17,46 +17,50 @@ public class InvoiceExtractor : IInvoiceExtractor
 
   public async Task<Invoice?> ExtractAsync(Stream pdfStream)
   {
-    using var memoryStream = new MemoryStream();
-    await pdfStream.CopyToAsync(memoryStream);
-    byte[] pdfContent = memoryStream.ToArray();
-
+    byte[] pdfContent = await ReadBytesAsync(pdfStream);
     return await ExtractInvoiceAsync(pdfContent);
+  }
+
+  private static async Task<byte[]> ReadBytesAsync(Stream stream)
+  {
+    using var memoryStream = new MemoryStream();
+    await stream.CopyToAsync(memoryStream);
+    return memoryStream.ToArray();
   }
 
   public async Task<Invoice?> ExtractInvoiceAsync(byte[] pdfContent)
   {
-    byte[] textPdfContent = OcrPdf(pdfContent);
-    var pdfText = ExtractPdfText(textPdfContent);
+    string pdfText = await ExtractPdfText(pdfContent);
     var invoice = await ExtractInvoiceJson(pdfText);
     return invoice;
   }
 
-  private static byte[] OcrPdf(byte[] pdfContent)
+  private static async Task<string> ExtractPdfText(byte[] pdfContent)
   {
-    string temporaryInputPath = Path.GetTempFileName();
-    File.WriteAllBytes(temporaryInputPath, pdfContent);
-    string temporaryOutputPath = Path.GetTempFileName();
-    var process = Process.Start("ocrmypdf", $"-l pol --skip-text --output-type pdf {temporaryInputPath} {temporaryOutputPath}");
-    process.WaitForExit();
-    byte[] textPdfContent = File.ReadAllBytes(temporaryOutputPath);
-    File.Delete(temporaryInputPath);
-    File.Delete(temporaryOutputPath);
-    return textPdfContent;
-  }
+    string inputPdf = Path.GetTempFileName();
+    string outputPdf = Path.GetTempFileName();
+    string outputText = Path.GetTempFileName();
 
-  public static string ExtractPdfText(byte[] content)
-  {
-    var sb = new StringBuilder();
+    File.WriteAllBytes(inputPdf, pdfContent);
 
-    using var pdf = PdfDocument.Open(content);
-
-    foreach (var page in pdf.GetPages())
+    var startInfo = new ProcessStartInfo
     {
-      sb.AppendLine(page.Text);
-    }
+      FileName = "ocrmypdf",
+      Arguments = $"-l pol --output-type pdf --optimize 0 --sidecar {outputText} {inputPdf} {outputPdf}",
+      UseShellExecute = false
+    };
 
-    return sb.ToString();
+    Process.Start(startInfo)?.WaitForExit();
+
+    string pdfText = await File.ReadAllTextAsync(outputText);
+
+    Console.WriteLine("Extracted PDF Text:");
+    Console.WriteLine(pdfText);
+
+    File.Delete(inputPdf);
+    File.Delete(outputPdf);
+    File.Delete(outputText);
+    return pdfText;
   }
 
   public async Task<Invoice?> ExtractInvoiceJson(string invoiceText)
@@ -66,50 +70,16 @@ public class InvoiceExtractor : IInvoiceExtractor
       BaseAddress = new Uri(_options.OllamaUri)
     };
 
-    http.Timeout = TimeSpan.FromMinutes(5);
+    http.Timeout = TimeSpan.FromMinutes(10);
 
-    var systemPrompt = """
-You are a deterministic JSON extraction engine.
-Return valid JSON only.
-Do not include explanations or markdown.
+    var schema = JsonSerializerOptions.Default.GetJsonSchemaAsNode(typeof(Invoice));
+    var schemaString = JsonSerializer.Serialize(schema, new JsonSerializerOptions { WriteIndented = true });
 
-Return JSON exactly matching this schema:
-
-{
-  "invoiceNumber": string | null,
-  "issueDate": string | null,
-  "saleDate": string | null,
-  "seller": {
-    "name": string | null,
-    "address": string | null,
-    "nip": string | null
-  } | null,
-  "buyer": {
-    "name": string | null,
-    "address": string | null,
-    "nip": string | null
-  } | null,
-  "items": [
-    {
-      "name": string | null,
-      "quantity": number,
-      "unit": string | null,
-      "netPrice": number | null,
-      "netValue": number | null,
-      "vatRate": string | null,
-      "vatValue": number | null,
-      "grossValue": number | null
-    }
-  ] | null,
-  "totals": {
-    "netTotal": number | null,
-    "vatTotal": number | null,
-    "grossTotal": number | null
-  } | null
-}
-
-Use null when a value is missing.
-Do not add extra fields.
+    var systemPrompt = $"""
+You are a data extractor working on OCR text from a Polish PDF invoice.
+Extract the required fields and return them as JSON using the following schema:
+{schemaString}
+Do not invent data. If a field is missing, set its value to null.
 """;
 
     var requestBody = new
@@ -120,14 +90,20 @@ Do not add extra fields.
             new { role = "system", content = systemPrompt },
             new { role = "user", content = invoiceText }
         },
-      format = "json",
-      stream = false
+      format = schema,
+      stream = false,
+      temperature = 0
     };
+
+    var serializedRequest = JsonSerializer.Serialize(requestBody);
+    var prettyRequest = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions { WriteIndented = true });
+    Console.WriteLine("Sending request to Ollama...");
+    Console.WriteLine(prettyRequest);
 
     var response = await http.PostAsync(
         "/api/chat",
         new StringContent(
-            JsonSerializer.Serialize(requestBody),
+            serializedRequest,
             Encoding.UTF8,
             "application/json"
         )
@@ -136,6 +112,11 @@ Do not add extra fields.
     response.EnsureSuccessStatusCode();
 
     var responseJson = await response.Content.ReadAsStringAsync();
+
+    var parsed = JsonDocument.Parse(responseJson);
+    var prettyResponse = JsonSerializer.Serialize(parsed.RootElement, new JsonSerializerOptions { WriteIndented = true });
+    Console.WriteLine("Received response from Ollama:");
+    Console.WriteLine(prettyResponse);
 
     using var doc = JsonDocument.Parse(responseJson);
 

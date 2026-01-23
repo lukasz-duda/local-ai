@@ -2,7 +2,7 @@ using InvoiceExtraction;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 
-namespace InvoicesApi.Controllers;
+namespace InvoiceApi.Controllers;
 
 [ApiController]
 [Route("invoices")]
@@ -33,7 +33,7 @@ public class InvoiceController(IInvoiceExtractor invoiceExtractor) : ControllerB
         }
         else
         {
-            return NotFound();
+            return UnprocessableEntity("Failed to extract invoice data.");
         }
     }
 

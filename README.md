@@ -5,7 +5,8 @@ This project extracts key information from Polish PDF invoices using a local LLM
 First start [Ollama](https://ollama.com) and the [invoice API](http://localhost:5120/swagger):
 
 ```bash
-docker compose up -d
+docker compose --progress plain build
+docker compose up --detach --remove-orphans
 ```
 
 Then install the required language model:
